@@ -1,37 +1,25 @@
-## Welcome to GitHub Pages
+## (╯°□°）╯︵ⓓⓡⓒⓡⓤⓕⓣ
 
-You can use the [editor on GitHub](https://github.com/drcruft/drcruft.github.io/edit/master/index.md) to maintain and preview the content for your website in Markdown files.
+Welcome to DrCruft's blog. Here you'll find various thoughts, how-to articles, and resources around cyber security, machine learning, general computing.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+### About me
 
-### Markdown
+Over 20 years of experience in IT/Cyber providing design, development, implementation, analysis, support, and consulting. Providing risk analysis, vulnerability assessment, penetration testing, gap analysis, cyber threat intelligence, malware analysis & reverse engineering, incident response, application and system level development, web-application development, perimeter and internal security architecture design and implementation, research/analysis, and complex problem solving for Fortune 500 clients across US East coast.
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+Developed security programs to defend business and technical critical assets against prevalent and projected electronic and human threats achieving established business goals and objectives.
 
-```markdown
-Syntax highlighted code block
+Network penetration testing involving black Box (blind) testing, fuzzing, and defense systems evasion through sophisticated processes. Denial of Service testing and social engineering through electronic and physical.
 
-# Header 1
-## Header 2
-### Header 3
+Developed system kernel-level solutions and services for fast operation. Developed system, user, and web applications using a variety of programming languages and frameworks such as x86 Assembly, C, C++, C#, JAVA/J2EE, Python, Perl, Go, etc.
 
-- Bulleted
-- List
+Specialties: Cyber Data Science and Machine Learning, Cyber Threat Intelligence, Incident Response, Malware Reversing, Information Assurance, Red Teaming, Vulnerability Assessment, Penetration Testing, Risk Mitigation, Threat Projection, Security Software Development.
 
-1. Numbered
-2. List
+Current research areas include:
+- Cyber Data Science & Machine Learning (Finding the "bad" using ML)
+- Cyber Threat Intelligence
+- Automation in APT Defense, Incident Response, and Digital Forensics using ML
+- Malware Analysis and Reverse Engineering with focus on APT and Rootkits
+- Network Security /w Big Data Analytics
+- Digital Forensics 
 
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/drcruft/drcruft.github.io/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+You can find me here: [Linked-In](https://www.linkedin.com/in/amintora/) [@DRCRUFT](https://twitter.com/drcruft)
