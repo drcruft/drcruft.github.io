@@ -12,7 +12,14 @@ Network penetration testing involving black Box (blind) testing, fuzzing, and de
 
 Developed system kernel-level solutions and services for fast operation. Developed system, user, and web applications using a variety of programming languages and frameworks such as x86 Assembly, C, C++, C#, JAVA/J2EE, Python, Perl, Go, etc.
 
-Specialties: Cyber Data Science and Machine Learning, Cyber Threat Intelligence, Incident Response, Malware Reversing, Information Assurance, Red Teaming, Vulnerability Assessment, Penetration Testing, Risk Mitigation, Threat Projection, Security Software Development.
+Specialties: 
+- Cyber Data Science and Machine Learning
+- Cyber Threat Intelligence
+- Incident Response
+- Malware Reversing
+- Red Teaming, Vulnerability Assessment, Penetration Testing
+- Risk Mitigation, Threat Projection
+- Security Software Development
 
 Current research areas include:
 - Cyber Data Science & Machine Learning (Finding the "bad" using ML)
