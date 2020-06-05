@@ -22,4 +22,6 @@ Current research areas include:
 - Network Security /w Big Data Analytics
 - Digital Forensics 
 
-You can find me here: [Linked-In](https://www.linkedin.com/in/amintora/) [@DRCRUFT](https://twitter.com/drcruft)
+You can find me here:
+- On [Linked-In](https://www.linkedin.com/in/amintora/)
+- I'm also on Twitter [@DRCRUFT](https://twitter.com/drcruft)
