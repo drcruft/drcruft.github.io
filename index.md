@@ -1,6 +1,5 @@
-## (╯°□°）╯︵ⓓⓡⓒⓡⓤⓕⓣ
-
-Welcome to DrCruft's blog. Here you'll find various thoughts, how-to articles, and resources around cyber security, machine learning, general computing.
+Welcome to my blog. 
+Here you'll find various thoughts, how-to articles, and resources around cyber security, machine learning, general computing.
 
 ## About
-More about me [here](./about.md).
+My thoughts, comments, and views are my own and not representative of my employer, entity, or any organization. More about me [here](./about.md).
