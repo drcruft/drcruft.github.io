@@ -1,12 +1,12 @@
 # About Me
 
-Over 20 years of experience in IT/Cyber providing design, development, implementation, analysis, support, and consulting. Providing risk analysis, vulnerability assessment, penetration testing, gap analysis, cyber threat intelligence, malware analysis & reverse engineering, incident response, application and system level development, web-application development, perimeter and internal security architecture design and implementation, research/analysis, and complex problem solving for Fortune 500 clients across US.
+Over 27 years of experience in IT/Cyber providing design, development, implementation, analysis, support, and consulting. Providing risk analysis, vulnerability assessment, penetration testing, gap analysis, cyber threat intelligence, malware analysis & reverse engineering, incident response, application and system level development, web-application development, perimeter and internal security architecture design and implementation, research/analysis, and complex problem solving for Fortune 500 clients across US.
 
 Developed security programs to defend business and technical critical assets against prevalent and projected electronic and human threats achieving established business goals and objectives.
 
-Network penetration testing involving black Box (blind) testing, fuzzing, and defense systems evasion through sophisticated processes. Denial of Service testing and social engineering through electronic and physical.
+Network penetration testing involving black Box (blind) testing, fuzzing, and cyber defense systems evasion through sophisticated processes and techniques. Denial of Service testing and electronice & physical social engineering.
 
-Developed system kernel-level solutions and services for fast operation. Developed system, user, and web applications using a variety of programming languages and frameworks - such as x86 Assembly, C, C++, C#, JAVA, Python, Go, Perl, etc.
+Developed system kernel-level solutions and services for fast operation. Developed system, user, and web applications using a variety of programming languages and frameworks - such as x86 Assembly, C, C++, JAVA, Python, Go, C#, Perl, etc.
 
 ## Specialties
 - Cyber Data Science and Machine Learning
