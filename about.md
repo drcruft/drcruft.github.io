@@ -1,6 +1,6 @@
 # About Me
 
-Over 27 years of experience in IT/Cyber providing design, development, implementation, analysis, support, and consulting. Providing risk analysis, vulnerability assessment, penetration testing, gap analysis, cyber threat intelligence, malware analysis & reverse engineering, incident response, application and system level development, web-application development, perimeter and internal security architecture design and implementation, research/analysis, and complex problem solving for Fortune 500 clients across US.
+Over 30 years of experience in IT/Cyber providing design, development, implementation, analysis, support, and consulting. Providing risk analysis, vulnerability assessment, penetration testing, gap analysis, cyber threat intelligence, malware analysis & reverse engineering, incident response, application and system level development, web-application development, perimeter and internal security architecture design and implementation, research/analysis, and complex problem solving for Fortune 500 clients across US.
 
 Developed security programs to defend business and technical critical assets against prevalent and projected electronic and human threats achieving established business goals and objectives.
 
