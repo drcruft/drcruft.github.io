@@ -20,4 +20,4 @@ Welcome to my blog. Here you'll find various thoughts, how-to articles, and reso
 - Digital Forensics 
 
 # About
-My thoughts, comments, and views are my own and not representative of my employer or any entity or organization. More about me [here](./about.md).
+My thoughts, comments, and views are my own and not representative of my employer or any entity or organization.
