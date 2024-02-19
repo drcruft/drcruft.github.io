@@ -18,7 +18,7 @@ Providing risk analysis, vulnerability assessment, penetration testing, threat s
 - Developed system kernel-level solutions and services
 - Developed system and user applications using a variety of programming languages and frameworks - such as x86 Assembly, C, C++, JAVA, Python, Go, Rust, Perl, etc.
 
-## Special focus area I've worked in
+## Focus areas I've worked in
 - Cybersecurity : Data Science / Machine Learning / General Computing
 - Cyber Threat Intelligence / Incident Response / Malware Reversing
 - Threat Surface Monitoring / Red Teaming / Zero Day Research
