@@ -13,9 +13,10 @@ Providing risk analysis, vulnerability assessment, penetration testing, threat s
 
 - Developing security programs to defend business and technical critical assets against prevalent and projected electronic and human threats to achieve business goals and objectives.
 - Network penetration testing involving black Box (blind) testing, fuzzing, and cyber defense systems evasion through sophisticated processes and techniques. 
-- Denial of Service testing and electronice & physical social engineering.
-- Developed system kernel-level solutions and services for fast operation.
-- Developed system, user, and web applications using a variety of programming languages and frameworks - such as x86 Assembly, C, C++, JAVA, Python, Go, Rust, Perl, etc.
+- Denial of Service testing
+- Electronic & physical social engineering.
+- Developed system kernel-level solutions and services
+- Developed system and user applications using a variety of programming languages and frameworks - such as x86 Assembly, C, C++, JAVA, Python, Go, Rust, Perl, etc.
 
 ## Special focus area I've worked in
 - Cybersecurity : Data Science / Machine Learning / General Computing
