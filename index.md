@@ -18,7 +18,7 @@ Providing threat surface analysis, cyber threat intelligence, malware analysis &
 - Developed system kernel-level solutions and services
 - Developed system and user applications using a variety of programming languages and frameworks - such as x86 Assembly, C, C++, JAVA, Python, Go, Rust, Perl, etc.
 
-## Focus areas I've worked in
+## Areas I've worked in
 - Cybersecurity using Data Science / Machine Learning / General Computing
 - Cyber Threat Intelligence / Incident Response / Malware Reversing
 - Threat Surface Monitoring / Red Teaming / Zero Day Research
