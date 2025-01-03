@@ -9,9 +9,9 @@ So, I'm just trying to keep up, and share what I know. I've been trying for over
 
 ## Current research areas
 
-- Cyber Data Science & Machine Learning (Finding the "bad" using "AI"/ML)
-- Automation in APT Defense, Incident Response, and Digital Forensics
-- Malware Analysis and Reverse Engineering with focus on APT and Rootkits
+- AI/ML and Cybersecurity (Finding the "bad" using "AI"/ML)
+- Automation in Cybersecurity (Detection, Response, Forensics, Synthesis)
+- Malware Analysis and Reverse Engineering
 
 # You can connect with me here:
 - On [Linked-In](https://www.linkedin.com/in/amintora/)
