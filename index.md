@@ -1,7 +1,6 @@
 # Welcome
 
-Welcome to my blog. 
-Here you'll find various thoughts, how-to articles, and resources around cyber security, machine learning, and general computing.
+Hello and welcome. Here you'll find various thoughts, how-to articles, and resources around general computing, cyber security, and artificial intelligence and machine learning.
 
 # About me
 
@@ -20,7 +19,7 @@ So, I'm just trying to keep up, and share what I know. I've been trying for over
 
 ## What I've been doing?
 
-Trying to solve problems in general computing, networking, and cybersecurity. Have done many things around the usual stuff, like log and telemetry collection and ingestion, threat modeling, threat surface analysis, red teaming, cyber threat intelligence, malware analysis & reverse engineering, incident response, risk analysis, vulnerability assessment, penetration testing, application and system level development, perimeter and internal security architecture design and implementation, research and analysis, and general complex problem solving for Fortune 500 clients across US and abroad. Including, things like:
+Trying to solve problems in general computing, cybersecurity, and automation. I have done many things around the usual stuff, like log and telemetry collection and ingestion, threat modeling, threat surface analysis, red teaming, cyber threat intelligence, malware analysis & reverse engineering, incident response, risk analysis, vulnerability assessment, penetration testing, application and system level development, perimeter and internal security architecture design and implementation, research and analysis, and general complex problem solving for Fortune 500 clients across US and abroad. Including, things like:
 
 - Cybersecurity using Data Science, Machine Learning, General Computing
 - Cyber Threat Intelligence, Incident Response, Malware Reversing
