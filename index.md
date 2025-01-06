@@ -1,6 +1,6 @@
 # Welcome
 
-Hello and welcome. Here you'll find various thoughts, how-to articles, and resources around general computing, cyber security, and artificial intelligence and machine learning.
+Hello and welcome. Here you'll find various thoughts, how-to articles, and resources around general computing, cybersecurity, and artificial intelligence and machine learning.
 
 # About me
 
