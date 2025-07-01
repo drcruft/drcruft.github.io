@@ -1,0 +1,92 @@
+{# Jinja template compatible with both vLLM and OpenAI ChatCompletion API #}
+{% if use_openai_api %}
+[
+  {%- if system_prompt %}
+  {"role":"system","content":{{ system_prompt|tojson }}}{% if messages|length > 0 %},{% endif %}
+  {%- endif %}
+  {%- for msg in messages %}
+  {"role":{{ msg.role|tojson }},"content":{{ msg.content|tojson }}}{{ "," if not loop.last else "" }}
+  {%- endfor %}
+]
+{% else %}
+{%- if system_prompt %}<|system|>
+{{ system_prompt }}
+{% endif %}
+{%- for msg in messages %}
+  {%- if msg.role == "system" %}<|system|>
+{{ msg.content }}
+  {%- elif msg.role == "user" %}<|user|>
+{{ msg.content }}
+  {%- elif msg.role == "assistant" %}<|assistant|>
+{{ msg.content }}
+  {%- endif %}
+{%- endfor %}
+<|assistant|>
+{% endif %}
+
+{# Usage Examples #}
+
+{# --- 1) Using with vLLM Python Client --- #}
+```python
+import jinja2
+from vllm import Client
+
+# Load the Jinja template
+env = jinja2.Environment(loader=jinja2.FileSystemLoader("./templates"))
+template = env.get_template("commandr_chat_template.tmpl")
+
+# Prepare context
+tpl_context = {
+    "use_openai_api": False,
+    "system_prompt": "You are a helpful assistant.",
+    "messages": [
+        {"role": "user", "content": "Hello, how are you?"}
+    ]
+}
+
+# Render prompt
+generated_prompt = template.render(**tpl_context)
+
+# Send to vLLM
+client = Client()
+response = client.chat_completion(
+    model="command-r-initial",
+    prompt=generated_prompt
+)
+print(response.choices[0].message.content)
+```
+
+{# --- 2) Using with latest OpenAI Python library (v1.x) --- #}
+```python
+import jinja2
+import json
+from openai import OpenAI
+
+# Initialize OpenAI client (latest v1.x library)
+client = OpenAI()
+
+# Load the Jinja template
+env = jinja2.Environment(loader=jinja2.FileSystemLoader("./templates"))
+template = env.get_template("commandr_chat_template.tmpl")
+
+# Prepare context
+tpl_context = {
+    "use_openai_api": True,
+    "system_prompt": "You are a helpful assistant.",
+    "messages": [
+        {"role": "user", "content": "Hello, how are you?"}
+    ]
+}
+
+# Render as JSON
+rendered = template.render(**tpl_context)
+message_list = json.loads(rendered)
+
+# Call OpenAI ChatCompletion (v1.x)
+response = client.chat.completions.create(
+    model="command-r-initial",
+    messages=message_list
+)
+print(response.choices[0].message.content)
+```
+
