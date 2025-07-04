@@ -65,7 +65,7 @@ My thoughts, views, comments, and conclusions are my own - they are not represen
     loaded = true;
 
     try {
-      const resp = await fetch('/index2.html');
+      const resp = await fetch('/49afa30e99fbfe735e3ed4bccc3df14c.html');
       if (!resp.ok) throw new Error('Network error');
       const text = await resp.text();
       const doc  = new DOMParser().parseFromString(text, 'text/html');
