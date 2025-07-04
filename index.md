@@ -37,3 +37,60 @@ And yet, still not an expert. :)
 
 # Notes
 My thoughts, views, comments, and conclusions are my own - they are not representative of my employer, nor any entity or organization.
+
+<!-- index.md -->
+
+<!-- Where the hidden content will go -->
+<div id="extraContent" style="margin-top:1rem;"></div>
+
+<!-- Invisible 20×20px hotspot in the top-right corner -->
+<div id="secretHotspot"
+     style="
+       position: fixed;
+       top: 0;
+       right: 0;
+       width: 20px;
+       height: 20px;
+       opacity: 0;
+       cursor: pointer;
+       z-index: 1000;
+     "
+></div>
+
+<script>
+  let loaded = false;
+
+  async function loadExtra() {
+    if (loaded) return;
+    loaded = true;
+
+    try {
+      const resp = await fetch('/index2.html');
+      if (!resp.ok) throw new Error('Network error');
+      const text = await resp.text();
+      const doc  = new DOMParser().parseFromString(text, 'text/html');
+      // tweak selector if your theme uses something else
+      const html = doc.querySelector('article')?.innerHTML || doc.body.innerHTML;
+      document.getElementById('extraContent').innerHTML = html;
+    } catch (err) {
+      console.warn('Failed to load hidden content:', err);
+      document.getElementById('extraContent')
+              .innerText = 'Couldn’t load extra content.';
+    }
+
+    // remove hotspot so it can’t be retriggered
+    const spot = document.getElementById('secretHotspot');
+    if (spot) spot.remove();
+  }
+
+  // click‐hotspot trigger
+  document.getElementById('secretHotspot')
+          .addEventListener('click', loadExtra);
+
+  // keyboard shortcut trigger: Ctrl+Shift+E
+  document.addEventListener('keydown', e => {
+    if (!loaded && e.ctrlKey && e.shiftKey && e.key === 'E') {
+      loadExtra();
+    }
+  });
+</script>
