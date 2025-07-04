@@ -1,92 +1,90 @@
-{# Jinja template compatible with both vLLM and OpenAI ChatCompletion API #}
-{% if use_openai_api %}
-[
-  {%- if system_prompt %}
-  {"role":"system","content":{{ system_prompt|tojson }}}{% if messages|length > 0 %},{% endif %}
-  {%- endif %}
-  {%- for msg in messages %}
-  {"role":{{ msg.role|tojson }},"content":{{ msg.content|tojson }}}{{ "," if not loop.last else "" }}
-  {%- endfor %}
-]
-{% else %}
-{%- if system_prompt %}<|system|>
-{{ system_prompt }}
-{% endif %}
-{%- for msg in messages %}
-  {%- if msg.role == "system" %}<|system|>
-{{ msg.content }}
-  {%- elif msg.role == "user" %}<|user|>
-{{ msg.content }}
-  {%- elif msg.role == "assistant" %}<|assistant|>
-{{ msg.content }}
-  {%- endif %}
-{%- endfor %}
-<|assistant|>
-{% endif %}
+#!/usr/bin/env python3
+import socket
+import select
+from socketserver import ThreadingMixIn, TCPServer, StreamRequestHandler
 
-{# Usage Examples #}
+class ProxyHandler(StreamRequestHandler):
+    def handle(self):
+        # Read the client request line
+        first_line = self.rfile.readline().decode('utf-8', errors='ignore')
+        if not first_line:
+            return
 
-{# --- 1) Using with vLLM Python Client --- #}
-```python
-import jinja2
-from vllm import Client
+        method, path, protocol = first_line.strip().split()
 
-# Load the Jinja template
-env = jinja2.Environment(loader=jinja2.FileSystemLoader("./templates"))
-template = env.get_template("commandr_chat_template.tmpl")
+        if method.upper() == "CONNECT":
+            # HTTPS proxying
+            host, port = path.split(":")
+            port = int(port)
+            try:
+                # Connect to target
+                remote = socket.create_connection((host, port))
+                # Tell client the tunnel is ready
+                self.wfile.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                # Tunnel data in both directions
+                self._tunnel(self.connection, remote)
+            except Exception as e:
+                self.wfile.write(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+        else:
+            # HTTP proxying (GET, POST, etc.)
+            # Read and forward headers
+            headers = {}
+            while True:
+                line = self.rfile.readline().decode('utf-8', errors='ignore')
+                if line in ('\r\n', '\n', ''):
+                    break
+                key, value = line.split(":", 1)
+                headers[key.strip().lower()] = value.strip()
 
-# Prepare context
-tpl_context = {
-    "use_openai_api": False,
-    "system_prompt": "You are a helpful assistant.",
-    "messages": [
-        {"role": "user", "content": "Hello, how are you?"}
-    ]
-}
+            # Determine target host and port
+            host_header = headers.get("host", "")
+            if ":" in host_header:
+                host, port = host_header.split(":", 1)
+                port = int(port)
+            else:
+                host, port = host_header, 80
 
-# Render prompt
-generated_prompt = template.render(**tpl_context)
+            try:
+                remote = socket.create_connection((host, port))
+                # Rewrite request line to use absolute path
+                remote.write(f"{method} {path} {protocol}\r\n".encode())
 
-# Send to vLLM
-client = Client()
-response = client.chat_completion(
-    model="command-r-initial",
-    prompt=generated_prompt
-)
-print(response.choices[0].message.content)
-```
+                # Forward all headers
+                for h, v in headers.items():
+                    remote.write(f"{h}: {v}\r\n".encode())
+                remote.write(b"\r\n")
 
-{# --- 2) Using with latest OpenAI Python library (v1.x) --- #}
-```python
-import jinja2
-import json
-from openai import OpenAI
+                # If there’s a request body, forward that too
+                if 'content-length' in headers:
+                    body = self.rfile.read(int(headers['content-length']))
+                    remote.write(body)
 
-# Initialize OpenAI client (latest v1.x library)
-client = OpenAI()
+                # Tunnel the rest
+                self._tunnel(self.connection, remote)
+            except Exception:
+                self.send_error(502, "Bad Gateway")
 
-# Load the Jinja template
-env = jinja2.Environment(loader=jinja2.FileSystemLoader("./templates"))
-template = env.get_template("commandr_chat_template.tmpl")
+    def _tunnel(self, client_sock, remote_sock):
+        sockets = [client_sock, remote_sock]
+        while True:
+            r, _, _ = select.select(sockets, [], [])
+            for s in r:
+                data = s.recv(4096)
+                if not data:
+                    return
+                # Send to the other side
+                if s is client_sock:
+                    remote_sock.sendall(data)
+                else:
+                    client_sock.sendall(data)
 
-# Prepare context
-tpl_context = {
-    "use_openai_api": True,
-    "system_prompt": "You are a helpful assistant.",
-    "messages": [
-        {"role": "user", "content": "Hello, how are you?"}
-    ]
-}
+class ThreadedTCPServer(ThreadingMixIn, TCPServer):
+    allow_reuse_address = True
 
-# Render as JSON
-rendered = template.render(**tpl_context)
-message_list = json.loads(rendered)
-
-# Call OpenAI ChatCompletion (v1.x)
-response = client.chat.completions.create(
-    model="command-r-initial",
-    messages=message_list
-)
-print(response.choices[0].message.content)
-```
+if __name__ == "__main__":
+    import sys
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
+    server = ThreadedTCPServer(("0.0.0.0", port), ProxyHandler)
+    print(f"[*] Open proxy listening on port {port}")
+    server.serve_forever()
 
