@@ -12,7 +12,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
 )
-# Redirect stderr to stdout so tracebacks are captured in our log stream:
+# Redirect stderr to stdout so tracebacks appear in our log stream:
 sys.stderr = sys.stdout
 
 class ProxyHandler(StreamRequestHandler):
@@ -24,7 +24,7 @@ class ProxyHandler(StreamRequestHandler):
                 return
 
             method, path, protocol = first_line.strip().split()
-            logging.info(f"Connection from {client_ip}:{client_port} → {method} {path}")
+            logging.info(f"{client_ip}:{client_port} → {method} {path}")
 
             if method.upper() == "CONNECT":
                 self._handle_connect(path)
@@ -36,17 +36,17 @@ class ProxyHandler(StreamRequestHandler):
     def _handle_connect(self, path):
         host, port_str = path.split(":", 1)
         port = int(port_str)
-        logging.info(f"Establishing tunnel to {host}:{port}")
+        logging.info(f"CONNECT tunnel to {host}:{port}")
         try:
             remote = socket.create_connection((host, port))
             self.wfile.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             self._tunnel(self.connection, remote)
         except Exception:
-            logging.exception(f"Failed to CONNECT to {host}:{port}")
+            logging.exception(f"CONNECT failed to {host}:{port}")
             self.wfile.write(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
 
     def _handle_http(self, method, path, protocol):
-        # Read headers
+        # Read client headers
         headers = {}
         while True:
             line = self.rfile.readline().decode('utf-8', errors='ignore')
@@ -62,24 +62,25 @@ class ProxyHandler(StreamRequestHandler):
         else:
             host, port = host_header, 80
 
-        logging.info(f"Forwarding HTTP {method} to {host}:{port} (path={path})")
+        logging.info(f"Proxying HTTP {method} → {host}:{port} (path={path})")
 
         try:
             remote = socket.create_connection((host, port))
-            # Send request line + headers
-            remote.write(f"{method} {path} {protocol}\r\n".encode())
+            # Send request line + headers via sendall():
+            remote.sendall(f"{method} {path} {protocol}\r\n".encode())
             for h, v in headers.items():
-                remote.write(f"{h}: {v}\r\n".encode())
-            remote.write(b"\r\n")
+                remote.sendall(f"{h}: {v}\r\n".encode())
+            remote.sendall(b"\r\n")
 
-            # If body is present, forward it
+            # Forward any request body
             if 'content-length' in headers:
                 body = self.rfile.read(int(headers['content-length']))
-                remote.write(body)
+                remote.sendall(body)
 
+            # Tunnel data bidirectionally
             self._tunnel(self.connection, remote)
         except Exception:
-            logging.exception(f"Error proxying HTTP request to {host}:{port}")
+            logging.exception(f"HTTP proxy to {host}:{port} failed")
             self.send_error(502, "Bad Gateway")
 
     def _tunnel(self, client_sock, remote_sock):
@@ -96,7 +97,7 @@ class ProxyHandler(StreamRequestHandler):
                     else:
                         client_sock.sendall(data)
         except Exception:
-            logging.exception("Error during data tunneling")
+            logging.exception("Error during tunneling")
 
 class ThreadedTCPServer(ThreadingMixIn, TCPServer):
     allow_reuse_address = True
