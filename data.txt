@@ -1,1 +1,114 @@
-Data from file
+#!/usr/bin/env python3
+import socket
+import select
+import sys
+import logging
+from socketserver import ThreadingMixIn, TCPServer, StreamRequestHandler
+
+# ——— Logging setup ———
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+# Redirect stderr to stdout so tracebacks are captured in our log stream:
+sys.stderr = sys.stdout
+
+class ProxyHandler(StreamRequestHandler):
+    def handle(self):
+        client_ip, client_port = self.client_address
+        try:
+            first_line = self.rfile.readline().decode('utf-8', errors='ignore')
+            if not first_line:
+                return
+
+            method, path, protocol = first_line.strip().split()
+            logging.info(f"Connection from {client_ip}:{client_port} → {method} {path}")
+
+            if method.upper() == "CONNECT":
+                self._handle_connect(path)
+            else:
+                self._handle_http(method, path, protocol)
+        except Exception:
+            logging.exception("Unhandled exception in request handling")
+
+    def _handle_connect(self, path):
+        host, port_str = path.split(":", 1)
+        port = int(port_str)
+        logging.info(f"Establishing tunnel to {host}:{port}")
+        try:
+            remote = socket.create_connection((host, port))
+            self.wfile.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            self._tunnel(self.connection, remote)
+        except Exception:
+            logging.exception(f"Failed to CONNECT to {host}:{port}")
+            self.wfile.write(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+
+    def _handle_http(self, method, path, protocol):
+        # Read headers
+        headers = {}
+        while True:
+            line = self.rfile.readline().decode('utf-8', errors='ignore')
+            if line in ('\r\n', '\n', ''):
+                break
+            key, value = line.split(":", 1)
+            headers[key.strip().lower()] = value.strip()
+
+        host_header = headers.get("host", "")
+        if ":" in host_header:
+            host, port_str = host_header.split(":", 1)
+            port = int(port_str)
+        else:
+            host, port = host_header, 80
+
+        logging.info(f"Forwarding HTTP {method} to {host}:{port} (path={path})")
+
+        try:
+            remote = socket.create_connection((host, port))
+            # Send request line + headers
+            remote.write(f"{method} {path} {protocol}\r\n".encode())
+            for h, v in headers.items():
+                remote.write(f"{h}: {v}\r\n".encode())
+            remote.write(b"\r\n")
+
+            # If body is present, forward it
+            if 'content-length' in headers:
+                body = self.rfile.read(int(headers['content-length']))
+                remote.write(body)
+
+            self._tunnel(self.connection, remote)
+        except Exception:
+            logging.exception(f"Error proxying HTTP request to {host}:{port}")
+            self.send_error(502, "Bad Gateway")
+
+    def _tunnel(self, client_sock, remote_sock):
+        sockets = [client_sock, remote_sock]
+        try:
+            while True:
+                rlist, _, _ = select.select(sockets, [], [])
+                for s in rlist:
+                    data = s.recv(4096)
+                    if not data:
+                        return
+                    if s is client_sock:
+                        remote_sock.sendall(data)
+                    else:
+                        client_sock.sendall(data)
+        except Exception:
+            logging.exception("Error during data tunneling")
+
+class ThreadedTCPServer(ThreadingMixIn, TCPServer):
+    allow_reuse_address = True
+
+if __name__ == "__main__":
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
+    logging.info(f"Starting open proxy on 0.0.0.0:{port}")
+    server = ThreadedTCPServer(("0.0.0.0", port), ProxyHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        logging.info("Shutting down proxy")
+        server.shutdown()
+        server.server_close()
+
