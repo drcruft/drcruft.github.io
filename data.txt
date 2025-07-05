@@ -1,34 +1,47 @@
-     def _handle_connect(self, path):
--        host, port_str = path.split(":", 1)
--        port = int(port_str)
--        logging.info(f"CONNECT tunnel to {host}:{port}")
--        try:
--            remote = socket.create_connection((host, port))
--            self.wfile.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
--            self._tunnel(self.connection, remote)
--        except Exception:
--            logging.exception(f"CONNECT failed to {host}:{port}")
--            self.wfile.write(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
-+        host, port_str = path.split(":", 1)
-+        port = int(port_str)
-+        logging.info(f"CONNECT tunnel to {host}:{port}")
-+
-+        try:
-+            # 1) Open the tunnel
-+            remote = socket.create_connection((host, port))
-+
-+            # 2) Send a perfectly-formed CONNECT response directly on the socket
-+            resp = (
-+                b"HTTP/1.1 200 Connection Established\r\n"
-+                b"Proxy-Agent: SimpleProxy/1.0\r\n"
-+                b"\r\n"
-+            )
-+            # use the raw socket to avoid any buffering issues
-+            self.connection.sendall(resp)
-+
-+            # 3) Now flush and start shuttling bytes
-+            self._tunnel(self.connection, remote)
-+        except Exception:
-+            logging.exception(f"CONNECT failed to {host}:{port}")
-+            # If we can’t open the tunnel, tell the client it’s a bad gateway
-+            self.connection.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+def handle(self):
+    client_ip, client_port = self.client_address
+
+    # 1) skip blank lines
+    while True:
+        raw = self.rfile.readline()
+        if not raw:
+            return
+        if raw not in (b'\r\n', b'\n'):
+            first_line = raw.decode('utf-8', errors='ignore')
+            break
+
+    logging.debug(f"Request-line: {first_line!r}")
+
+    # 2) parse or 400
+    parts = first_line.strip().split()
+    if len(parts) != 3:
+        logging.warning("Malformed request-line, replying 400")
+        self.connection.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
+        return
+    method, path, protocol = parts
+
+    # 3) health-check?
+    if method.upper() == "GET" and path == "/":
+        # drain headers…
+        while True:
+            line = self.rfile.readline()
+            if not line or line in (b'\r\n', b'\n'):
+                break
+        self.connection.sendall(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Length: 2\r\n"
+            b"Connection: close\r\n"
+            b"\r\n"
+            b"OK"
+        )
+        return
+
+    # 4) CONNECT vs HTTP proxy
+    logging.info(f"{client_ip}:{client_port} → {method} {path}")
+    try:
+        if method.upper() == "CONNECT":
+            self._handle_connect(path)
+        else:
+            self._handle_http(method, path, protocol)
+    except Exception:
+        logging.exception("Error in request handling")
