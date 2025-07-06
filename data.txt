@@ -1,47 +1,77 @@
-def handle(self):
-    client_ip, client_port = self.client_address
+# crew_routing.py
 
-    # 1) skip blank lines
-    while True:
-        raw = self.rfile.readline()
-        if not raw:
-            return
-        if raw not in (b'\r\n', b'\n'):
-            first_line = raw.decode('utf-8', errors='ignore')
-            break
+from crewai import Agent
+from langchain.chat_models import ChatOpenAI
 
-    logging.debug(f"Request-line: {first_line!r}")
+# ——— Base LLM pointing at local vLLM OpenAI API ———
+llm = ChatOpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="local-api-key",
+    model="command-r",
+    temperature=0.3,
+    max_tokens=1024,
+    timeout=60,
+    request_timeout=60,
+)
 
-    # 2) parse or 400
-    parts = first_line.strip().split()
-    if len(parts) != 3:
-        logging.warning("Malformed request-line, replying 400")
-        self.connection.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
-        return
-    method, path, protocol = parts
+# ——— Classifier Agent ———
+classifier = Agent(
+    role="router",
+    goal=(
+        "Given a user message, choose exactly one label: "
+        "CHAT, RAG, IOC, or SPLUNK."
+    ),
+    system_prompt=(
+        "You are a routing assistant. "
+        "Output only one of: CHAT, RAG, IOC, SPLUNK."
+    ),
+    llm=llm,
+    verbose=True,
+)
 
-    # 3) health-check?
-    if method.upper() == "GET" and path == "/":
-        # drain headers…
-        while True:
-            line = self.rfile.readline()
-            if not line or line in (b'\r\n', b'\n'):
-                break
-        self.connection.sendall(
-            b"HTTP/1.1 200 OK\r\n"
-            b"Content-Length: 2\r\n"
-            b"Connection: close\r\n"
-            b"\r\n"
-            b"OK"
-        )
-        return
+# ——— Functional Agents ———
+chat_agent = Agent(
+    role="general_chat",
+    goal="Answer general conversational queries.",
+    system_prompt="You are a helpful assistant.",
+    llm=llm,
+    memory=True,
+)
 
-    # 4) CONNECT vs HTTP proxy
-    logging.info(f"{client_ip}:{client_port} → {method} {path}")
-    try:
-        if method.upper() == "CONNECT":
-            self._handle_connect(path)
-        else:
-            self._handle_http(method, path, protocol)
-    except Exception:
-        logging.exception("Error in request handling")
+rag_agent = Agent(
+    role="knowledge_search",
+    goal="Perform retrieval-augmented lookup over the knowledge base.",
+    system_prompt="You are an expert researcher. Use the KB to find and summarize information.",
+    llm=llm,
+    memory=False,
+)
+
+ioc_agent = Agent(
+    role="ioc_lookup",
+    goal="Lookup threat intelligence IOCs from the internal database.",
+    system_prompt="You are a threat intelligence assistant. Provide IOC details when asked.",
+    llm=llm,
+    memory=False,
+)
+
+splunk_agent = Agent(
+    role="splunk_query",
+    goal="Construct and execute Splunk API queries for security events.",
+    system_prompt="You are a Splunk assistant. Formulate valid Splunk queries based on user input.",
+    llm=llm,
+    memory=False,
+)
+
+def route_prompt(user_message: str) -> str:
+    """Route the user_message through the appropriate Agent."""
+    decision = classifier.respond(user_message).strip().upper()
+    if decision == "CHAT":
+        return chat_agent.respond(user_message)
+    elif decision == "RAG":
+        return rag_agent.respond(user_message)
+    elif decision == "IOC":
+        return ioc_agent.respond(user_message)
+    elif decision == "SPLUNK":
+        return splunk_agent.respond(user_message)
+    # Fallback
+    return chat_agent.respond(user_message)
