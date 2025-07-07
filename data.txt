@@ -1,8 +1,8 @@
 ```python
 import streamlit as st
-import streamlit.components.v1 as components
-from typing import List, Dict, Iterator
-import time
+import os
+import openai
+from typing import List, Dict
 
 # Initialize the page configuration for a professional look
 def init_page():
@@ -12,87 +12,77 @@ def init_page():
         layout="wide",
         initial_sidebar_state="collapsed"
     )
+    # Custom CSS for avatar background colors
     st.markdown(
         """
         <style>
-        .chat-container {
-            max-width: 800px;
-            margin: auto;
+        /* User avatar color */
+        .stChatMessage[data-testid='stChatMessage-user'] .stChatMessageAvatar {
+            background-color: #4F46E5 !important; /* Indigo */
         }
-        button.copy-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 4px;
-            margin-top: 4px;
-        }
-        button.copy-btn svg {
-            width: 16px;
-            height: 16px;
-            vertical-align: middle;
-        }
-        button.copy-btn:hover svg {
-            opacity: 0.7;
+        /* Assistant avatar color */
+        .stChatMessage[data-testid='stChatMessage-assistant'] .stChatMessageAvatar {
+            background-color: #059669 !important; /* Emerald */
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-# Render chat history stored in Session State with copy icons
+# Render chat history stored in Session State with custom icons
 def render_chat(messages: List[Dict[str, str]]):
+    # Define custom avatars (could be emojis or image URLs)
+    avatar_map = {
+        "user": "🧑‍💻",
+        "assistant": "🤖"
+    }
     with st.container():
-        for idx, msg in enumerate(messages):
+        for msg in messages:
             role = msg.get("role")
-            content = msg.get("content")
-            if role == "user":
-                st.chat_message("user").markdown(content)
-            else:
-                st.chat_message("assistant").markdown(content)
-                safe_content = content.replace('"', '&quot;').replace("'", "&#39;")
-                html = f"""
-                <div style='display:flex; align-items:center; gap:8px; margin-top:4px;'>
-                  <button class='copy-btn' onclick="navigator.clipboard.writeText(document.getElementById('msg_{idx}').innerText)">
-                    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>
-                      <rect x='4' y='4' width='8' height='8' stroke='currentColor' fill='none'/>
-                      <rect x='6' y='6' width='8' height='8' stroke='currentColor' fill='none'/>
-                    </svg>
-                  </button>
-                  <div id='msg_{idx}' style='display:none;'>{safe_content}</div>
-                </div>
-                """
-                components.html(html, height=40)
-
-# Simulated streaming LLM call
-def call_llm_stream(user_input: str) -> Iterator[str]:
-    # TODO: Replace with your LLM streaming API
-    example = ["You ", "said", ": ", user_input]
-    for chunk in example:
-        time.sleep(0.1)
-        yield chunk
+            content = msg.get("content", "")
+            avatar = avatar_map.get(role)
+            # Use built-in chat message with custom avatar
+            st.chat_message(role, avatar=avatar).markdown(content)
 
 # Main application
 def main():
     init_page()
 
+    # Configure OpenAI-compatible API for Command-R via VLLM
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    openai.api_base = os.getenv("COMMANDR_API_BASE", "http://localhost:8080/v1")
+
+    # Initialize session state for chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+    # Display existing chat history (oldest at top)
     render_chat(st.session_state.messages)
 
+    # Chat input at the bottom
     user_input = st.chat_input("Type your message here...")
     if user_input:
+        # Append user's message
         st.session_state.messages.append({"role": "user", "content": user_input})
-        st.chat_message("user").markdown(user_input)
+        st.chat_message("user", avatar=avatar_map.get("user")).markdown(user_input)
 
-        assistant_msg = st.chat_message("assistant")
-        full_response = ""
-        for token in call_llm_stream(user_input):
-            full_response += token
-            assistant_msg.markdown(full_response)
+        # Only send the last 10 messages for context
+        context = st.session_state.messages[-10:]
 
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+        # Call the LLM with truncated conversation context
+        response = openai.ChatCompletion.create(
+            model="command-r",
+            messages=context,
+            temperature=0.7,
+            max_tokens=512,
+        )
+        llm_response = response.choices[0].message.content
+
+        # Append assistant's response to history and render with custom avatar
+        st.session_state.messages.append({"role": "assistant", "content": llm_response})
+        st.chat_message("assistant", avatar=avatar_map.get("assistant")).markdown(llm_response)
 
 if __name__ == "__main__":
     main()
+
 ```
