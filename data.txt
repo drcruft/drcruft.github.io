@@ -1,5 +1,7 @@
 import streamlit as st
-from typing import List, Dict
+import streamlit.components.v1 as components
+from typing import List, Dict, Iterator
+import time
 
 # Initialize the page configuration for a professional look
 def init_page():
@@ -16,31 +18,53 @@ def init_page():
             max-width: 800px;
             margin: auto;
         }
+        button.copy-btn {
+            background-color: #1f2937;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            margin-top: 4px;
+        }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-# Render chat history stored in Session State
+# Render chat history stored in Session State with copy buttons
 def render_chat(messages: List[Dict[str, str]]):
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-    for msg in messages:
-        role = msg.get("role")
-        content = msg.get("content")
-        if role == "user":
-            st.chat_message("user").markdown(content)
-        else:
-            st.chat_message("assistant").markdown(content)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container():
+        for idx, msg in enumerate(messages):
+            role = msg.get("role")
+            content = msg.get("content")
+            if role == "user":
+                st.chat_message("user").markdown(content)
+            else:
+                # Render assistant message
+                st.chat_message("assistant").markdown(content)
+                # Add copy button below
+                safe_content = content.replace('"', '&quot;').replace("'", "&#39;")
+                html = f"""
+                <button class='copy-btn' onclick="navigator.clipboard.writeText(document.getElementById('msg_{idx}').innerText)">Copy</button>
+                <div id='msg_{idx}' style='display:none;'>{safe_content}</div>
+                """
+                components.html(html, height=40)
 
-# Placeholder function for LLM call
-def call_llm(user_input: str) -> str:
-    # TODO: Replace with actual LLM call
-    return f"You said: {user_input}"
+# Simulated streaming LLM call
+def call_llm_stream(user_input: str) -> Iterator[str]:
+    # TODO: Replace with your LLM streaming API
+    example = ["You ", "said", ": ", user_input]
+    for chunk in example:
+        time.sleep(0.1)
+        yield chunk
 
 # Main application
 def main():
     init_page()
+
+    # Initialize session state for chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
@@ -50,20 +74,19 @@ def main():
     # Chat input at the bottom
     user_input = st.chat_input("Type your message here...")
     if user_input:
-        # Append user's message immediately
+        # Append user's message
         st.session_state.messages.append({"role": "user", "content": user_input})
         st.chat_message("user").markdown(user_input)
 
-        # Show a placeholder assistant message while generating
-        assistant_placeholder = st.chat_message("assistant")
-        assistant_placeholder.markdown("...")
+        # Stream assistant response
+        assistant_msg = st.chat_message("assistant")
+        full_response = ""
+        for token in call_llm_stream(user_input):
+            full_response += token
+            assistant_msg.markdown(full_response)
 
-        # Call the LLM and update placeholder
-        llm_response = call_llm(user_input)
-        assistant_placeholder.markdown(llm_response)
-
-        # Append assistant's response to history
-        st.session_state.messages.append({"role": "assistant", "content": llm_response})
+        # Append final response to history
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 if __name__ == "__main__":
     main()
