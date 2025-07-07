@@ -20,21 +20,26 @@ def init_page():
             margin: auto;
         }
         button.copy-btn {
-            background-color: #1f2937;
-            color: white;
+            background: none;
             border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
             cursor: pointer;
-            font-size: 0.875rem;
+            padding: 4px;
             margin-top: 4px;
+        }
+        button.copy-btn svg {
+            width: 16px;
+            height: 16px;
+            vertical-align: middle;
+        }
+        button.copy-btn:hover svg {
+            opacity: 0.7;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-# Render chat history stored in Session State with copy buttons
+# Render chat history stored in Session State with copy icons
 def render_chat(messages: List[Dict[str, str]]):
     with st.container():
         for idx, msg in enumerate(messages):
@@ -43,13 +48,18 @@ def render_chat(messages: List[Dict[str, str]]):
             if role == "user":
                 st.chat_message("user").markdown(content)
             else:
-                # Render assistant message
                 st.chat_message("assistant").markdown(content)
-                # Add copy button below
                 safe_content = content.replace('"', '&quot;').replace("'", "&#39;")
                 html = f"""
-                <button class='copy-btn' onclick="navigator.clipboard.writeText(document.getElementById('msg_{idx}').innerText)">Copy</button>
-                <div id='msg_{idx}' style='display:none;'>{safe_content}</div>
+                <div style='display:flex; align-items:center; gap:8px; margin-top:4px;'>
+                  <button class='copy-btn' onclick="navigator.clipboard.writeText(document.getElementById('msg_{idx}').innerText)">
+                    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>
+                      <rect x='4' y='4' width='8' height='8' stroke='currentColor' fill='none'/>
+                      <rect x='6' y='6' width='8' height='8' stroke='currentColor' fill='none'/>
+                    </svg>
+                  </button>
+                  <div id='msg_{idx}' style='display:none;'>{safe_content}</div>
+                </div>
                 """
                 components.html(html, height=40)
 
@@ -65,28 +75,22 @@ def call_llm_stream(user_input: str) -> Iterator[str]:
 def main():
     init_page()
 
-    # Initialize session state for chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Display existing chat history (oldest at top)
     render_chat(st.session_state.messages)
 
-    # Chat input at the bottom
     user_input = st.chat_input("Type your message here...")
     if user_input:
-        # Append user's message
         st.session_state.messages.append({"role": "user", "content": user_input})
         st.chat_message("user").markdown(user_input)
 
-        # Stream assistant response
         assistant_msg = st.chat_message("assistant")
         full_response = ""
         for token in call_llm_stream(user_input):
             full_response += token
             assistant_msg.markdown(full_response)
 
-        # Append final response to history
         st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 if __name__ == "__main__":
