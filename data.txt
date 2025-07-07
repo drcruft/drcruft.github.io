@@ -1,77 +1,65 @@
-# crew_routing.py
+import streamlit as st
+from typing import List, Dict
 
-from crewai import Agent
-from langchain.chat_models import ChatOpenAI
+# Initialize the page configuration for a professional look
+def init_page():
+    st.set_page_config(
+        page_title="LLM Chat UI",
+        page_icon="💬",
+        layout="wide",
+        initial_sidebar_state="collapsed"
+    )
 
-# ——— Base LLM pointing at local vLLM OpenAI API ———
-llm = ChatOpenAI(
-    base_url="http://localhost:8000/v1",
-    api_key="local-api-key",
-    model="command-r",
-    temperature=0.3,
-    max_tokens=1024,
-    timeout=60,
-    request_timeout=60,
-)
+    # Optional CSS to center content and adjust max width
+    st.markdown(
+        """
+        <style>
+        .chat-container {
+            max-width: 800px;
+            margin: auto;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-# ——— Classifier Agent ———
-classifier = Agent(
-    role="router",
-    goal=(
-        "Given a user message, choose exactly one label: "
-        "CHAT, RAG, IOC, or SPLUNK."
-    ),
-    system_prompt=(
-        "You are a routing assistant. "
-        "Output only one of: CHAT, RAG, IOC, SPLUNK."
-    ),
-    llm=llm,
-    verbose=True,
-)
+# Render chat history stored in Session State
+def render_chat(messages: List[Dict[str, str]]):
+    with st.container():
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content")
+            # Use built-in chat message components
+            if role == "user":
+                st.chat_message("user").markdown(content)
+            else:
+                st.chat_message("assistant").markdown(content)
 
-# ——— Functional Agents ———
-chat_agent = Agent(
-    role="general_chat",
-    goal="Answer general conversational queries.",
-    system_prompt="You are a helpful assistant.",
-    llm=llm,
-    memory=True,
-)
+# Main application
+def main():
+    init_page()
 
-rag_agent = Agent(
-    role="knowledge_search",
-    goal="Perform retrieval-augmented lookup over the knowledge base.",
-    system_prompt="You are an expert researcher. Use the KB to find and summarize information.",
-    llm=llm,
-    memory=False,
-)
+    # Initialize session state for chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-ioc_agent = Agent(
-    role="ioc_lookup",
-    goal="Lookup threat intelligence IOCs from the internal database.",
-    system_prompt="You are a threat intelligence assistant. Provide IOC details when asked.",
-    llm=llm,
-    memory=False,
-)
+    # Display existing chat history (oldest at top)
+    render_chat(st.session_state.messages)
 
-splunk_agent = Agent(
-    role="splunk_query",
-    goal="Construct and execute Splunk API queries for security events.",
-    system_prompt="You are a Splunk assistant. Formulate valid Splunk queries based on user input.",
-    llm=llm,
-    memory=False,
-)
+    # Chat input at the bottom
+    user_input = st.chat_input("Type your message here...")
+    if user_input:
+        # Append user's message
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        st.chat_message("user").markdown(user_input)
 
-def route_prompt(user_message: str) -> str:
-    """Route the user_message through the appropriate Agent."""
-    decision = classifier.respond(user_message).strip().upper()
-    if decision == "CHAT":
-        return chat_agent.respond(user_message)
-    elif decision == "RAG":
-        return rag_agent.respond(user_message)
-    elif decision == "IOC":
-        return ioc_agent.respond(user_message)
-    elif decision == "SPLUNK":
-        return splunk_agent.respond(user_message)
-    # Fallback
-    return chat_agent.respond(user_message)
+        # CALL YOUR LLM HERE
+        # Example placeholder response (replace with actual LLM call)
+        llm_response = f"You said: {user_input}"
+
+        # Append assistant's response
+        st.session_state.messages.append({"role": "assistant", "content": llm_response})
+        st.chat_message("assistant").markdown(llm_response)
+
+if __name__ == "__main__":
+    main()
