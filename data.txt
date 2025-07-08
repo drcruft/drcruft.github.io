@@ -1,28 +1,41 @@
 ```python
-import os
-import time
-import splunklib.client as client
-from crewai.tools import BaseTool
+from crewai import Agent, Task, Crew, Process
 
-class SplunkSearchTool(BaseTool):
-    name: str = "splunk_search"
-    description: str = (
-        "Execute a Splunk SPL query and return the JSON results."
-    )
+# Load Splunk credentials from env vars (or hard-code for testing)
+HOST     = os.getenv("SPLUNK_HOST", "splunk.example.com")
+PORT     = int(os.getenv("SPLUNK_PORT", 8089))
+USER     = os.getenv("SPLUNK_USERNAME", "admin")
+PASS     = os.getenv("SPLUNK_PASSWORD", "changeme")
 
-    def __init__(self, host: str, port: int, username: str, password: str, **kwargs):
-        super().__init__(**kwargs)
-        # Establish connection to Splunk REST API
-        self.service = client.connect(
-            host=host, port=port, username=username, password=password
-        )
+# Instantiate the tool
+splunk_tool = SplunkSearchTool(
+    host=HOST, port=PORT, username=USER, password=PASS
+)
 
-    def _run(self, query: str, earliest: str = "-15m", latest: str = "now", **kwargs):
-        # Create and poll a search job
-        job = self.service.jobs.create(query, earliest_time=earliest, latest_time=latest)
-        while not job.is_done():
-            time.sleep(0.5)
-        # Fetch results in JSON
-        results = job.results(output_mode="json")
-        return results.read()
+# Define an Agent that can use the Splunk tool
+splunk_agent = Agent(
+    name="SplunkAnalyst",
+    tools=[splunk_tool],
+    description="Runs SPL queries against Splunk and returns results."
+)
+
+# Define a Task that delegates to that Agent
+splunk_task = Task(
+    name="RunSplunkQuery",
+    agent=splunk_agent,
+    description="Given an SPL query, execute it via the SplunkSearchTool.",
+    tools=[splunk_tool]
+)
+
+# Build and run the Crew
+crew = Crew(
+    agents=[splunk_agent],
+    tasks=[splunk_task],
+    process=Process.sequential
+)
+
+# Kick off the crew with your query
+output = crew.kickoff(input="search index=_internal | head 5")
+print(output)
+
 ```
