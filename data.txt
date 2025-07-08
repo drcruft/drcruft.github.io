@@ -1,146 +1,28 @@
 ```python
 import os
-import shutil
-import requests
-import streamlit as st
+import time
+import splunklib.client as client
+from crewai.tools import BaseTool
 
-from crewai import CrewAgent, Tool, LLMConfig
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
-from langchain.vectorstores import Chroma
-
-# Directories
-UPLOAD_DIR = "uploads"
-CHROMA_DIR = "chroma_db"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(CHROMA_DIR, exist_ok=True)
-
-# Embedding and vector store setup
-embeddings = OpenAIEmbeddings()
-chroma_settings = {"chroma_db_impl": "duckdb+parquet", "persist_directory": CHROMA_DIR}
-vectorstore = Chroma(
-    embedding_function=embeddings,
-    persist_directory=CHROMA_DIR,
-    client_settings=chroma_settings,
-    collection_name="docs"
-)
-
-# Document ingestion function
-def ingest_file(file_path: str) -> int:
-    ext = os.path.splitext(file_path)[1].lower()
-    if ext == ".pdf":
-        loader = PyPDFLoader(file_path)
-    elif ext == ".docx":
-        loader = Docx2txtLoader(file_path)
-    else:
-        loader = TextLoader(file_path)
-
-    docs = loader.load()
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    split_docs = splitter.split_documents(docs)
-    vectorstore.add_documents(split_docs)
-    vectorstore.persist()
-    return len(split_docs)
-
-# Retrieval tool for RAG
-def rag_tool(query: str) -> str:
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-    docs = retriever.get_relevant_documents(query)
-    context = "\n\n".join([d.page_content for d in docs])
-    prompt = f"Context:\n{context}\n\nUser: {query}"
-    return chat_model(prompt)
-
-# Chat tool calling local Command-R via VLLM
-COMMANDR_URL = os.getenv("COMMANDR_URL", "http://localhost:8000/v1/chat/completions")
-COMMANDR_MODEL = os.getenv("COMMANDR_MODEL_NAME", "command-r")
-
-def chat_model(prompt: str, history: list = None) -> str:
-    messages = []
-    # Customize the system prompt as needed
-    messages.append({"role": "system", "content": "You are a helpful assistant."})
-    if history:
-        messages.extend(history)
-    messages.append({"role": "user", "content": prompt})
-
-    payload = {
-        "model": COMMANDR_MODEL,
-        "messages": messages,
-        "stream": False
-    }
-    resp = requests.post(COMMANDR_URL, json=payload)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["choices"][0]["message"]["content"]
-
-# CrewAI agent setup
-tools = [
-    Tool(name="chat", func=chat_model, description="Direct chat with the LLM"),
-    Tool(name="rag", func=rag_tool, description="Retrieval-augmented generation from docs")
-]
-
-llm_config = LLMConfig(
-    model=COMMANDR_MODEL,
-    base_url=COMMANDR_URL,
-    streaming=False
-)
-
-agent = CrewAgent(
-    llm=llm_config,
-    tools=tools,
-    router=llm_config
-)
-
-# Streamlit UI configuration
-st.set_page_config(page_title="Command-R + RAG", layout="wide")
-st.title("Command-R + RAG with ChromaDB")
-
-# Sidebar: upload and manage documents
-st.sidebar.header("Document Management")
-uploaded_file = st.sidebar.file_uploader("Upload PDF, DOCX, or TXT", type=["pdf","docx","txt"])
-if uploaded_file:
-    save_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
-    with open(save_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    count = ingest_file(save_path)
-    st.sidebar.success(f"Ingested {uploaded_file.name} into {count} chunks.")
-
-if st.sidebar.button("Clear Documents"):
-    # Remove and recreate Chroma DB folder
-    shutil.rmtree(CHROMA_DIR)
-    os.makedirs(CHROMA_DIR, exist_ok=True)
-    # Reinitialize vector store
-    vectorstore = Chroma(
-        embedding_function=embeddings,
-        persist_directory=CHROMA_DIR,
-        client_settings=chroma_settings,
-        collection_name="docs"
+class SplunkSearchTool(BaseTool):
+    name: str = "splunk_search"
+    description: str = (
+        "Execute a Splunk SPL query and return the JSON results."
     )
-    st.sidebar.warning("Cleared all ingested documents.")
 
-# Initialize chat history
-if "history" not in st.session_state:
-    st.session_state.history = []
+    def __init__(self, host: str, port: int, username: str, password: str, **kwargs):
+        super().__init__(**kwargs)
+        # Establish connection to Splunk REST API
+        self.service = client.connect(
+            host=host, port=port, username=username, password=password
+        )
 
-# Main chat interface
-st.subheader("Chat")
-user_input = st.text_input("You:", key="input")
-if st.button("Send", key="send") and user_input:
-    # Run through CrewAI agent
-    result = agent.run(user_input)
-    response = result.get("output", "")
-    # Save to session history
-    st.session_state.history.append(("You", user_input))
-    st.session_state.history.append(("Assistant", response))
-    st.session_state.input = ""
-
-# Display history
-for speaker, text in st.session_state.history:
-    if speaker == "You":
-        st.markdown(f"**You:** {text}")
-    else:
-        st.markdown(f"**Assistant:** {text}")
-
-# Requirements:
-# streamlit, crewai, chromadb, langchain, openai, python-docx, pypdf, duckdb-engine, requests
+    def _run(self, query: str, earliest: str = "-15m", latest: str = "now", **kwargs):
+        # Create and poll a search job
+        job = self.service.jobs.create(query, earliest_time=earliest, latest_time=latest)
+        while not job.is_done():
+            time.sleep(0.5)
+        # Fetch results in JSON
+        results = job.results(output_mode="json")
+        return results.read()
 ```
