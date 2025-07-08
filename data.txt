@@ -1,88 +1,146 @@
 ```python
-import streamlit as st
 import os
-import openai
-from typing import List, Dict
+import shutil
+import requests
+import streamlit as st
 
-# Initialize the page configuration for a professional look
-def init_page():
-    st.set_page_config(
-        page_title="LLM Chat UI",
-        page_icon="💬",
-        layout="wide",
-        initial_sidebar_state="collapsed"
-    )
-    # Custom CSS for avatar background colors
-    st.markdown(
-        """
-        <style>
-        /* User avatar color */
-        .stChatMessage[data-testid='stChatMessage-user'] .stChatMessageAvatar {
-            background-color: #4F46E5 !important; /* Indigo */
-        }
-        /* Assistant avatar color */
-        .stChatMessage[data-testid='stChatMessage-assistant'] .stChatMessageAvatar {
-            background-color: #059669 !important; /* Emerald */
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+from crewai import CrewAgent, Tool, LLMConfig
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
+from langchain.vectorstores import Chroma
 
-# Render chat history stored in Session State with custom icons
-def render_chat(messages: List[Dict[str, str]]):
-    # Define custom avatars (could be emojis or image URLs)
-    avatar_map = {
-        "user": "🧑‍💻",
-        "assistant": "🤖"
+# Directories
+UPLOAD_DIR = "uploads"
+CHROMA_DIR = "chroma_db"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(CHROMA_DIR, exist_ok=True)
+
+# Embedding and vector store setup
+embeddings = OpenAIEmbeddings()
+chroma_settings = {"chroma_db_impl": "duckdb+parquet", "persist_directory": CHROMA_DIR}
+vectorstore = Chroma(
+    embedding_function=embeddings,
+    persist_directory=CHROMA_DIR,
+    client_settings=chroma_settings,
+    collection_name="docs"
+)
+
+# Document ingestion function
+def ingest_file(file_path: str) -> int:
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".pdf":
+        loader = PyPDFLoader(file_path)
+    elif ext == ".docx":
+        loader = Docx2txtLoader(file_path)
+    else:
+        loader = TextLoader(file_path)
+
+    docs = loader.load()
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    split_docs = splitter.split_documents(docs)
+    vectorstore.add_documents(split_docs)
+    vectorstore.persist()
+    return len(split_docs)
+
+# Retrieval tool for RAG
+def rag_tool(query: str) -> str:
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+    docs = retriever.get_relevant_documents(query)
+    context = "\n\n".join([d.page_content for d in docs])
+    prompt = f"Context:\n{context}\n\nUser: {query}"
+    return chat_model(prompt)
+
+# Chat tool calling local Command-R via VLLM
+COMMANDR_URL = os.getenv("COMMANDR_URL", "http://localhost:8000/v1/chat/completions")
+COMMANDR_MODEL = os.getenv("COMMANDR_MODEL_NAME", "command-r")
+
+def chat_model(prompt: str, history: list = None) -> str:
+    messages = []
+    # Customize the system prompt as needed
+    messages.append({"role": "system", "content": "You are a helpful assistant."})
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": prompt})
+
+    payload = {
+        "model": COMMANDR_MODEL,
+        "messages": messages,
+        "stream": False
     }
-    with st.container():
-        for msg in messages:
-            role = msg.get("role")
-            content = msg.get("content", "")
-            avatar = avatar_map.get(role)
-            # Use built-in chat message with custom avatar
-            st.chat_message(role, avatar=avatar).markdown(content)
+    resp = requests.post(COMMANDR_URL, json=payload)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"]
 
-# Main application
-def main():
-    init_page()
+# CrewAI agent setup
+tools = [
+    Tool(name="chat", func=chat_model, description="Direct chat with the LLM"),
+    Tool(name="rag", func=rag_tool, description="Retrieval-augmented generation from docs")
+]
 
-    # Configure OpenAI-compatible API for Command-R via VLLM
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    openai.api_base = os.getenv("COMMANDR_API_BASE", "http://localhost:8080/v1")
+llm_config = LLMConfig(
+    model=COMMANDR_MODEL,
+    base_url=COMMANDR_URL,
+    streaming=False
+)
 
-    # Initialize session state for chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+agent = CrewAgent(
+    llm=llm_config,
+    tools=tools,
+    router=llm_config
+)
 
-    # Display existing chat history (oldest at top)
-    render_chat(st.session_state.messages)
+# Streamlit UI configuration
+st.set_page_config(page_title="Command-R + RAG", layout="wide")
+st.title("Command-R + RAG with ChromaDB")
 
-    # Chat input at the bottom
-    user_input = st.chat_input("Type your message here...")
-    if user_input:
-        # Append user's message
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        st.chat_message("user", avatar=avatar_map.get("user")).markdown(user_input)
+# Sidebar: upload and manage documents
+st.sidebar.header("Document Management")
+uploaded_file = st.sidebar.file_uploader("Upload PDF, DOCX, or TXT", type=["pdf","docx","txt"])
+if uploaded_file:
+    save_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
+    with open(save_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    count = ingest_file(save_path)
+    st.sidebar.success(f"Ingested {uploaded_file.name} into {count} chunks.")
 
-        # Only send the last 10 messages for context
-        context = st.session_state.messages[-10:]
+if st.sidebar.button("Clear Documents"):
+    # Remove and recreate Chroma DB folder
+    shutil.rmtree(CHROMA_DIR)
+    os.makedirs(CHROMA_DIR, exist_ok=True)
+    # Reinitialize vector store
+    vectorstore = Chroma(
+        embedding_function=embeddings,
+        persist_directory=CHROMA_DIR,
+        client_settings=chroma_settings,
+        collection_name="docs"
+    )
+    st.sidebar.warning("Cleared all ingested documents.")
 
-        # Call the LLM with truncated conversation context
-        response = openai.ChatCompletion.create(
-            model="command-r",
-            messages=context,
-            temperature=0.7,
-            max_tokens=512,
-        )
-        llm_response = response.choices[0].message.content
+# Initialize chat history
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-        # Append assistant's response to history and render with custom avatar
-        st.session_state.messages.append({"role": "assistant", "content": llm_response})
-        st.chat_message("assistant", avatar=avatar_map.get("assistant")).markdown(llm_response)
+# Main chat interface
+st.subheader("Chat")
+user_input = st.text_input("You:", key="input")
+if st.button("Send", key="send") and user_input:
+    # Run through CrewAI agent
+    result = agent.run(user_input)
+    response = result.get("output", "")
+    # Save to session history
+    st.session_state.history.append(("You", user_input))
+    st.session_state.history.append(("Assistant", response))
+    st.session_state.input = ""
 
-if __name__ == "__main__":
-    main()
+# Display history
+for speaker, text in st.session_state.history:
+    if speaker == "You":
+        st.markdown(f"**You:** {text}")
+    else:
+        st.markdown(f"**Assistant:** {text}")
 
+# Requirements:
+# streamlit, crewai, chromadb, langchain, openai, python-docx, pypdf, duckdb-engine, requests
 ```
