@@ -1,78 +1,52 @@
 ```python
 
-**Position Title:**
-Data Engineer, Cybersecurity AI Solutions
+from openai import OpenAI
+from crewai_tools import Tool
 
----
+# 1) Define your function schema
+classify_intent_definition = {
+    "name": "classify_intent",
+    "description": "Classify the user’s prompt into one of: 'chat', 'splunk_query', 'other_tool'.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "intent": {
+                "type": "string",
+                "enum": ["chat", "splunk_query", "other_tool"]
+            },
+            "confidence": {
+                "type": "number",
+                "description": "Model’s confidence from 0.0 to 1.0"
+            }
+        },
+        "required": ["intent", "confidence"]
+    }
+}
 
-## 1. Position Description
+openai = OpenAI()
 
-The Data Engineer on the Cybersecurity AI Solutions team will architect, build, and operationalize the end-to-end data pipelines that power our next-generation AI-driven security analytics. Reporting to the Head of Cybersecurity AI, you will partner closely with data scientists, security analysts, and IT infrastructure teams to ingest, process, and curate massive, heterogeneous data sets—log data from Splunk, telemetry from network devices, threat intelligence feeds, and GPU-accelerated ML outputs. You will design scalable, highly available data platforms on Cloudera and NVIDIA Superpod clusters, enforce data quality via Cribble, and integrate outputs into Splunk Enterprise Security and SOAR workflows. Your work will enable real-time threat detection, automated response orchestration, and continuous model retraining, directly strengthening Saudi Aramco’s security posture.
+# 2) Wrap it in a CrewAI Tool
+intent_tool = Tool(
+    name="classify_intent",
+    description="Returns JSON {intent, confidence}.",
+    func=lambda prompt: openai.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.0,
+        messages=[
+            {"role": "system", "content":
+             "You’re an intent classification service. Always respond via the `classify_intent` function."},
+            # (Optionally insert your few-shot examples here)
+            {"role": "user", "content": prompt}
+        ],
+        functions=[classify_intent_definition],   # ← your function schema goes here
+        function_call={"name": "classify_intent"}  # ← force the model to use it
+    ).choices[0].message.function_call.arguments
+)
 
----
-
-## 2. Minimum Requirements
-
-* **Education:** Bachelor’s degree in Computer Science, Software Engineering, Information Systems, or a related technical discipline.
-* **Experience:**
-
-  * 5+ years of hands-on data engineering or big data development in an enterprise environment.
-  * Proven track record building and maintaining data pipelines on Hadoop/Cloudera ecosystems.
-  * 3+ years working with Splunk Enterprise (search, dashboards, data ingestion) and Splunk Enterprise Security / SOAR.
-  * Proficiency in Python and key libraries (Pandas); solid scripting skills (Bash, PowerShell).
-  * Strong SQL skills and experience with distributed query engines (Hive, Impala).
-  * Familiarity with Linux administration and cluster management.
-* **Security Clearance:** Ability to obtain and maintain Saudi Aramco security clearance.
-
----
-
-## 3. Preferred Technical Requirements
-
-* **Big Data & AI Frameworks:**
-
-  * TensorFlow and/or PyTorch for ML pipeline integration.
-  * Experience with Cribble for data quality rules and deduplication.
-* **High-Performance Computing:**
-
-  * Hands-on with NVIDIA Superpods or similar GPU clusters, including job scheduling and performance tuning.
-* **Certifications (nice-to-have):**
-
-  * Cloudera Certified Professional (CCP) or Cloudera Certified Administrator (CCA).
-  * Splunk Certified Administrator and/or Splunk Enterprise Security Certified.
-  * Certified Information Systems Security Professional (CISSP) or equivalent.
-* **Cloud & DevOps:**
-
-  * Exposure to containerization (Docker, Kubernetes) and CI/CD pipelines (Jenkins, GitLab CI).
-  * Familiarity with public cloud data services (AWS EMR, GCP Dataproc) a plus.
-* **Programming & Tools:**
-
-  * Experience with version control (Git), infrastructure-as-code (Terraform, Ansible), and Agile methodologies.
-
----
-
-## 4. Duties & Responsibilities
-
-* **Data Pipeline Development:** Design, implement, and maintain robust ETL/ELT pipelines on Cloudera for ingesting logs, network telemetry, and threat intel.
-* **Splunk Integration:** Configure data inputs, develop index-time and search-time extractions, build and optimize Splunk Enterprise and ES dashboards, and integrate with SOAR workflows for automated playbooks.
-* **AI/ML Data Prep:** Collaborate with data science teams to transform raw security data into feature stores, implement data validation and reconciliation using Cribble, and automate model retraining triggers.
-* **HPC Operations:** Deploy and optimize GPU-accelerated workloads on NVIDIA Superpods, manage resource allocation, and monitor job performance.
-* **Data Governance & Quality:** Establish data lineage, metadata management, and enforce quality standards (accuracy, completeness, timeliness) across all security data assets.
-* **Collaboration & Support:** Partner with security operations, network engineering, and IT infrastructure to ensure end-to-end solution reliability; provide on-call support for critical data workflows.
-* **Documentation & Training:** Author clear technical documentation, run knowledge-transfer sessions, and mentor junior engineers.
-* **Continuous Improvement:** Identify bottlenecks, propose optimizations, adopt emerging technologies, and drive automation to enhance efficiency and scalability.
-
----
-
-## 5. Justification
-
-As Saudi Aramco accelerates its digital transformation and bolsters its cybersecurity posture, the volume, velocity, and variety of security data continue to grow exponentially. To leverage advanced AI for proactive threat detection and automated response—key to defending our critical assets—we require a dedicated Data Engineer with deep expertise in Cloudera, Splunk, and GPU-accelerated AI pipelines. This role is pivotal to:
-
-* **Reduce Mean Time to Detect (MTTD) and Respond (MTTR):** By delivering low-latency, high-quality data streams into AI analytics and SOAR, the team can identify and remediate threats faster.
-* **Scale AI Initiatives:** Enable continuous integration of new models, automated retraining, and seamless integration with Splunk ES, ensuring the AI solutions evolve with emerging threats.
-* **Optimize Infrastructure Utilization:** Expert management of NVIDIA Superpods and Cloudera clusters will maximize performance, control costs, and maintain operational excellence.
-* **Enhance Collaboration:** Acting as the bridge between security analytics and IT operations, this position ensures that data-driven insights translate into actionable security controls.
-
-Investing in this role will directly support Saudi Aramco’s strategic objectives of maintaining world-class cyber resilience, operational efficiency, and technological leadership in the energy sector.
+# 3) Use it
+result = intent_tool.run("index=_internal | stats count by host")
+print(result)
+# -> {'intent': 'splunk_query', 'confidence': 0.99}
 
 
 
