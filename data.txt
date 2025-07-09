@@ -1,34 +1,40 @@
 ```python
-from typing import Type
-import time
-import splunklib.client as client
-from pydantic import BaseModel, Field
-from crewai.tools import BaseTool   # correct import for BaseTool :contentReference[oaicite:0]{index=0}
+Certainly. Here are **5 key risks and challenges** faced by a SOC that **has not adopted cognitive AI capabilities**:
 
-class SplunkSearchArgs(BaseModel):
-    """Schema for Splunk query inputs."""
-    query: str = Field(..., description="The SPL query to run")
-    earliest: str = Field("-15m", description="Earliest time for the search")
-    latest: str = Field("now", description="Latest time for the search")
+---
 
-class SplunkSearchTool(BaseTool):
-    name: str = "splunk_search"
-    description: str = "Execute a Splunk SPL query and return JSON results."
-    args_schema: Type[SplunkSearchArgs] = SplunkSearchArgs
+### 1. **Alert Fatigue and Missed Threats**
 
-    def __init__(self, host: str, port: int, username: str, password: str):
-        super().__init__()
-        self.service = client.connect(
-            host=host, port=port, username=username, password=password
-        )
+* Overwhelmed analysts may ignore or overlook critical alerts due to high volumes and false positives, increasing the risk of undetected breaches.
 
-    def _run(self, query: str, earliest: str = "-15m", latest: str = "now") -> str:
-        job = self.service.jobs.create(
-            query, earliest_time=earliest, latest_time=latest
-        )
-        while not job.is_done():
-            time.sleep(0.5)
-        return job.results(output_mode="json").read()
+---
+
+### 2. **Slow Detection and Response Times**
+
+* Without AI-driven correlation and triage, threat detection and incident response are slower, leading to prolonged attacker dwell time and higher impact.
+
+---
+
+### 3. **Scalability Bottlenecks**
+
+* Manual processes and human-limited workflows cannot scale with growing data, endpoints, and threat complexity, especially during surge events.
+
+---
+
+### 4. **Inconsistent Decision-Making**
+
+* Decisions vary across analysts based on experience, fatigue, or cognitive bias, leading to errors, duplicated effort, or delayed action.
+
+---
+
+### 5. **Inefficient Use of Human Resources**
+
+* Highly skilled analysts spend time on repetitive, low-value tasks (e.g., log reviews, ticket writing) instead of proactive threat hunting or investigation.
+
+---
+
+Let me know if you'd like this turned into a visual risk board or executive briefing format.
+
 
 
 ```
