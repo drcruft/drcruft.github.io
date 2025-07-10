@@ -1,52 +1,76 @@
 ```python
+This error is coming from vLLM’s pydantic-based `ModelConfig`, which by default bumps into Hugging Face’s repo-ID validator. In your `./model/llmembedding/config.json` you have something like:
 
-from openai import OpenAI
-from crewai_tools import Tool
-
-# 1) Define your function schema
-classify_intent_definition = {
-    "name": "classify_intent",
-    "description": "Classify the user’s prompt into one of: 'chat', 'splunk_query', 'other_tool'.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "intent": {
-                "type": "string",
-                "enum": ["chat", "splunk_query", "other_tool"]
-            },
-            "confidence": {
-                "type": "number",
-                "description": "Model’s confidence from 0.0 to 1.0"
-            }
-        },
-        "required": ["intent", "confidence"]
-    }
+```json
+{
+  "repo_id": "./model/llmembedding",
+  …
 }
+```
 
-openai = OpenAI()
+but the validator insists that a “repo\_id” be either
 
-# 2) Wrap it in a CrewAI Tool
-intent_tool = Tool(
-    name="classify_intent",
-    description="Returns JSON {intent, confidence}.",
-    func=lambda prompt: openai.chat.completions.create(
-        model="gpt-4o-mini",
-        temperature=0.0,
-        messages=[
-            {"role": "system", "content":
-             "You’re an intent classification service. Always respond via the `classify_intent` function."},
-            # (Optionally insert your few-shot examples here)
-            {"role": "user", "content": prompt}
-        ],
-        functions=[classify_intent_definition],   # ← your function schema goes here
-        function_call={"name": "classify_intent"}  # ← force the model to use it
-    ).choices[0].message.function_call.arguments
-)
+* a bare name (e.g. `"gpt2"`) or
+* a namespace/repo pair (e.g. `"BAAI/bge-large-en-v1.5"`),
 
-# 3) Use it
-result = intent_tool.run("index=_internal | stats count by host")
-print(result)
-# -> {'intent': 'splunk_query', 'confidence': 0.99}
+so it rejects anything starting with `./`.
+
+---
+
+### 🔧 Fix A: Patch your `config.json`
+
+1. Open `./model/llmembedding/config.json`.
+2. Change the `repo_id` entry to a valid Hugging Face model ID. For example, if you originally tensorized **BAAI/bge-large-en-v1.5**, set:
+
+   ```json
+   {
+     "repo_id": "BAAI/bge-large-en-v1.5",
+     "revision": "main",
+     …
+   }
+   ```
+3. Save and restart vLLM.
+
+This will satisfy the pydantic check and allow the model to load.
+
+---
+
+### 🔧 Fix B: Re-tensorize with the proper `--repo-id`
+
+If you’re using the `tensorize_vllm_model.py` script, you can tell it the correct repo name at generation time instead of the local path:
+
+```bash
+python examples/others/tensorize_vllm_model.py \
+  --model-id    BAAI/bge-large-en-v1.5 \
+  --repo-id     BAAI/bge-large-en-v1.5 \
+  --output-dir  ./model/llmembedding \
+  --dtype       float16
+```
+
+That way your `config.json` is baked with a valid `"repo_id"` from the start.
+
+---
+
+### 🔧 Fix C: Skip tensorization and serve directly from the Hub
+
+If you don’t actually need a tensorized snapshot on disk, you can just point vLLM at the model on HF:
+
+```bash
+vllm serve --model BAAI/bge-large-en-v1.5 --port 8000
+```
+
+This will pull the model config and weights straight from the Hub, bypassing any local-path validation altogether.
+
+---
+
+#### Why this happens
+
+Hugging Face’s `hf_hub_download` and related validators treat any string you pass as a “repo\_id” unless you explicitly give it a registered namespace/model name. Paths beginning with `./` or `/` aren’t accepted by the validator ([Hugging Face][1]) — they only allow alphanumerics, `-`, `_`, and a single `/` between namespace and repo([GitHub][2]).
+
+Pick the approach that best fits your workflow—either correct the repo ID in your config, re-tensorize with the right name, or serve directly from the Hub.
+
+[1]: https://huggingface.co/docs/huggingface_hub/en/guides/download?utm_source=chatgpt.com "Download files from the Hub - Hugging Face"
+[2]: https://github.com/huggingface/huggingface_hub/issues/1598?utm_source=chatgpt.com "Impossible to download data with snapshot_download #1598 - GitHub"
 
 
 
