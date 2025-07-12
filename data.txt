@@ -1,59 +1,37 @@
 ## cruft
 
-import time
-import splunklib.client as client
-from typing import Any, Type
-from pydantic import PrivateAttr, BaseModel, Field
-from crewai.tools import BaseTool
+from crewai import Agent, Task
+from typing import Literal
 
-
-class SplunkSearchArgs(BaseModel):
-    """Schema for Splunk query inputs."""
-    query: str = Field(..., description="The SPL query to run")
-    earliest: str = Field("-15m", description="Earliest time for the search")
-    latest: str = Field("now", description="Latest time for the search")
-
-
-class SplunkSearchTool(BaseTool):
-    name: str = "splunk_search"
-    description: str = "Execute a Splunk SPL query and return JSON results."
-    args_schema: Type[SplunkSearchArgs] = SplunkSearchArgs
-
-    # Private attribute to hold the Splunk service client
-    _service: Any = PrivateAttr()
-
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        username: str,
-        password: str,
-        result_as_answer: bool = True,
-        **kwargs
-    ):
-        # Initialize BaseTool (Pydantic BaseModel)
-        super().__init__(result_as_answer=result_as_answer, **kwargs)
-        # Establish connection to Splunk REST API
-        self._service = client.connect(
-            host=host,
-            port=port,
-            username=username,
-            password=password
+class IntentRouter:
+    def __init__(self, llm):
+        self.intent_classifier = Agent(
+            role="Intent Classifier",
+            goal="Determine if the user prompt is requesting a Splunk query execution, a query review, or general chat.",
+            backstory=(
+                "You are a specialized intent classifier in a cybersecurity assistant. "
+                "Your job is to label each prompt clearly based on its purpose.\n\n"
+                "**Label:**\n"
+                "- `run_query`: if the user is asking to run or execute a Splunk SPL query.\n"
+                "- `review_query`: if the user is asking for analysis, explanation, optimization, or improvement of a query.\n"
+                "- `general_chat`: if it’s a general question or unrelated discussion.\n\n"
+                "**Examples:**\n"
+                "- 'Can you run this: index=web sourcetype=access_combined error' → `run_query`\n"
+                "- 'Can you improve this query?' → `review_query`\n"
+                "- 'What does splunk index mean?' → `general_chat`\n"
+            ),
+            llm=llm,
+            verbose=False
         )
 
-    def _run(
-        self,
-        query: str,
-        earliest: str = "-15m",
-        latest: str = "now"
-    ) -> str:
-        # Create and poll a search job
-        job = self._service.jobs.create(
-            query,
-            earliest_time=earliest,
-            latest_time=latest
+    def classify_intent(self, user_input: str) -> Literal['run_query', 'review_query', 'general_chat']:
+        task = Task(
+            description=f"Classify this user prompt: '{user_input}' into one of: run_query, review_query, general_chat. Respond only with the intent label.",
+            expected_output="One of: run_query, review_query, general_chat",
+            agent=self.intent_classifier
         )
-        while not job.is_done():
-            time.sleep(0.5)
-        # Fetch and return results in JSON format
-        return job.results(output_mode="json").read()
+        output = task.execute()
+        for label in ['run_query', 'review_query', 'general_chat']:
+            if label in output.lower():
+                return label
+        return 'general_chat'
