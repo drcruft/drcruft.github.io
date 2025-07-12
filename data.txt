@@ -1,1 +1,59 @@
 ## cruft
+
+import time
+import splunklib.client as client
+from typing import Any, Type
+from pydantic import PrivateAttr, BaseModel, Field
+from crewai.tools import BaseTool
+
+
+class SplunkSearchArgs(BaseModel):
+    """Schema for Splunk query inputs."""
+    query: str = Field(..., description="The SPL query to run")
+    earliest: str = Field("-15m", description="Earliest time for the search")
+    latest: str = Field("now", description="Latest time for the search")
+
+
+class SplunkSearchTool(BaseTool):
+    name: str = "splunk_search"
+    description: str = "Execute a Splunk SPL query and return JSON results."
+    args_schema: Type[SplunkSearchArgs] = SplunkSearchArgs
+
+    # Private attribute to hold the Splunk service client
+    _service: Any = PrivateAttr()
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        username: str,
+        password: str,
+        result_as_answer: bool = True,
+        **kwargs
+    ):
+        # Initialize BaseTool (Pydantic BaseModel)
+        super().__init__(result_as_answer=result_as_answer, **kwargs)
+        # Establish connection to Splunk REST API
+        self._service = client.connect(
+            host=host,
+            port=port,
+            username=username,
+            password=password
+        )
+
+    def _run(
+        self,
+        query: str,
+        earliest: str = "-15m",
+        latest: str = "now"
+    ) -> str:
+        # Create and poll a search job
+        job = self._service.jobs.create(
+            query,
+            earliest_time=earliest,
+            latest_time=latest
+        )
+        while not job.is_done():
+            time.sleep(0.5)
+        # Fetch and return results in JSON format
+        return job.results(output_mode="json").read()
