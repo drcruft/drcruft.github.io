@@ -1,15 +1,11 @@
 ## cruft
 
-# app.py
 import os
 import json
-import time
 from crewai import LLM
 from tools.splunk_search_tool import SplunkSearchTool
 
-# ——————————————
-# 1) Instantiate your Splunk helper
-# ——————————————
+# 1) Instantiate the Splunk helper
 splunk_tool = SplunkSearchTool(
     host=os.getenv("SPLUNK_HOST",   "splunk.example.com"),
     port=int(os.getenv("SPLUNK_PORT","8089")),
@@ -17,65 +13,50 @@ splunk_tool = SplunkSearchTool(
     password=os.getenv("SPLUNK_PASSWORD","changeme"),
 )
 
-def run_splunk(query: str, earliest: str = "-15m", latest: str = "now") -> str:
-    """Helper that delegates to your SplunkSearchTool."""
-    return splunk_tool._run(query=query, earliest=earliest, latest=latest)
-
-# ——————————————
-# 2) Build the vLLM 'tools' list
-# ——————————————
+# 2) Build the vLLM‐style tool wrapper
 splunk_tool_def = {
     "type": "function",
     "function": {
-        "name": splunk_tool.name,
+        "name":        splunk_tool.name,
         "description": splunk_tool.description,
         "parameters": {
-            "type": "object",
+            "type":       "object",
             "properties": {
                 "query":    {"type":"string","description":"The SPL query to run"},
-                "earliest": {"type":"string","description":"Earliest time (e.g. '-15m')"},
-                "latest":   {"type":"string","description":"Latest time (e.g. 'now')"},
+                "earliest": {"type":"string","description":"Earliest time, e.g. '-15m'"},
+                "latest":   {"type":"string","description":"Latest time, e.g. 'now'"}
             },
-            "required":["query"],
-        },
+            "required": ["query"]
+        }
     }
 }
 
-# ——————————————
-# 3) Create your CrewAI LLM client
-# ——————————————
+# 3) Point at your local vLLM server
 llm = LLM(
-    model="command-r",                     # or your command-r alias
-    api_key="not_used",                    # vLLM doesn’t validate this
-    base_url="http://127.0.0.1:8000/v1",   # point at your vLLM server
+    model="command-r",
+    api_key="not_used",
+    base_url="http://127.0.0.1:8000/v1",
 )
 
-# ——————————————
-# 4) One-shot router + executor
-# ——————————————
 def ask(prompt: str) -> str:
-    # Send prompt + tool metadata
-    resp = llm.chat.completions.create(
-        messages=[{"role":"user","content":prompt}],
-        tools=[splunk_tool_def],
-        tool_choice="auto",
+    # **Here** is where we tell vLLM about our tool
+    msg = llm.call(
+        messages=[{"role":"user", "content": prompt}],
+        tools=[splunk_tool_def],    # <— tool schema goes here
+        tool_choice="auto"          # <— ask vLLM to pick & call it
     )
-    msg = resp.choices[0].message
 
-    # If the model called our Splunk function, run it
-    if getattr(msg, "tool_calls", None):
-        tc = msg.tool_calls[0].function
+    # dispatch if it chose our function
+    if hasattr(msg, "tool_calls") and msg.tool_calls:
+        tc = msg.tool_calls[0]
         if tc.name == splunk_tool.name:
-            args = json.loads(tc.arguments)
-            return run_splunk(**args)
+            args = tc.args
+            return splunk_tool._run(**args)
 
-    # Otherwise, just return plain chat
+    # otherwise, normal chat reply
     return msg.content
 
-# ——————————————
-# 5) CLI entrypoint
-# ——————————————
 if __name__ == "__main__":
-    prompt = " ".join(os.sys.argv[1:]) or input("You: ")
-    result = ask(prompt)
-    print("Assistant:", result)
+    q = input("You: ")
+    print("Assistant:", ask(q))
+
