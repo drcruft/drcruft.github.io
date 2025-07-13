@@ -1,37 +1,38 @@
 ## cruft
 
-from crewai import Agent, Task
-from typing import Literal
+from openai import OpenAI
+import json
 
-class IntentRouter:
-    def __init__(self, llm):
-        self.intent_classifier = Agent(
-            role="Intent Classifier",
-            goal="Determine if the user prompt is requesting a Splunk query execution, a query review, or general chat.",
-            backstory=(
-                "You are a specialized intent classifier in a cybersecurity assistant. "
-                "Your job is to label each prompt clearly based on its purpose.\n\n"
-                "**Label:**\n"
-                "- `run_query`: if the user is asking to run or execute a Splunk SPL query.\n"
-                "- `review_query`: if the user is asking for analysis, explanation, optimization, or improvement of a query.\n"
-                "- `general_chat`: if it’s a general question or unrelated discussion.\n\n"
-                "**Examples:**\n"
-                "- 'Can you run this: index=web sourcetype=access_combined error' → `run_query`\n"
-                "- 'Can you improve this query?' → `review_query`\n"
-                "- 'What does splunk index mean?' → `general_chat`\n"
-            ),
-            llm=llm,
-            verbose=False
-        )
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="dummy")
 
-    def classify_intent(self, user_input: str) -> Literal['run_query', 'review_query', 'general_chat']:
-        task = Task(
-            description=f"Classify this user prompt: '{user_input}' into one of: run_query, review_query, general_chat. Respond only with the intent label.",
-            expected_output="One of: run_query, review_query, general_chat",
-            agent=self.intent_classifier
-        )
-        output = task.execute()
-        for label in ['run_query', 'review_query', 'general_chat']:
-            if label in output.lower():
-                return label
-        return 'general_chat'
+def get_weather(location: str, unit: str):
+    return f"Getting the weather for {location} in {unit}..."
+tool_functions = {"get_weather": get_weather}
+
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get the current weather in a given location",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string", "description": "City and state, e.g., 'San Francisco, CA'"},
+                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+            },
+            "required": ["location", "unit"]
+        }
+    }
+}]
+
+response = client.chat.completions.create(
+    model=client.models.list().data[0].id,
+    messages=[{"role": "user", "content": "What's the weather like in San Francisco?"}],
+    tools=tools,
+    tool_choice="auto"
+)
+
+tool_call = response.choices[0].message.tool_calls[0].function
+print(f"Function called: {tool_call.name}")
+print(f"Arguments: {tool_call.arguments}")
+print(f"Result: {get_weather(**json.loads(tool_call.arguments))}")
