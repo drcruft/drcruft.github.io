@@ -2,7 +2,7 @@
 
 # Hello
 
-Hello  :)
+Hello, you've reached the corner.  :)
 
 <!-- this container holds the data -->
 <div id="dataContainer"
