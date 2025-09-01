@@ -97,3 +97,53 @@ If you tell me where you plan to run it (self-host, Bedrock, Groq, OCI, HF Trans
 [2]: https://aws.amazon.com/blogs/aws/llama-4-models-from-meta-now-available-in-amazon-bedrock-serverless/ "Llama 4 models from Meta now available in Amazon Bedrock serverless | AWS News Blog"
 [3]: https://console.groq.com/docs/model/meta-llama/llama-4-maverick-17b-128e-instruct "Llama 4 Maverick - GroqDocs"
 [4]: https://docs.oracle.com/en-us/iaas/Content/generative-ai/meta-llama-4-maverick.htm "Meta Llama 4 Maverick (New)"
+
+
+Here’s a concise, deployment-oriented cheat-sheet for the three models.
+
+### 1) How many parameters?
+
+* **OpenAI GPT-OSS-120B** — **117B total**, **\~5.1B active per token** (MoE: 128 experts, 4 active). Context: **128K** tokens. ([OpenAI][1])
+* **Meta Llama 4 Maverick** — **\~400B total**, **17B active per token** (MoE: 128 experts). Context: **\~1,000,000** tokens. ([Hugging Face][2])
+* **DeepSeek-V3.1** — **671B total**, **37B active per token** (inherits V3 architecture). Context: **128K** tokens. ([Hugging Face][3], [arXiv][4])
+
+### 2) Input / output prompt size (approx, in KB)
+
+> Rule of thumb: \~**4 bytes/token** of UTF-8 text.
+> **Max input+output** is bounded by the **context window**.
+
+* **GPT-OSS-120B** (128K): **\~512 KB** total window. Your **input KB + output KB ≈ 512 KB**. (e.g., 20K-token prompt ≈ \~80 KB leaves \~432 KB for output). ([OpenAI][1])
+* **Llama 4 Maverick** (1M): **\~4,000 KB (\~4 MB)** total window. **Input KB + output KB ≈ 4,000 KB**. ([Hugging Face][2])
+* **DeepSeek-V3.1** (128K): **\~512 KB** total window. **Input KB + output KB ≈ 512 KB**. ([Hugging Face][3])
+
+*(These are payload-size approximations; actual bytes vary with tokenizer/text. If a form needs hard numbers, provide the totals above and note they are “max combined input+output”.)*
+
+### 3) Precision typically used for inference
+
+* **GPT-OSS-120B** — Ships **natively quantized in MXFP4**; also runs in BF16/FP16 depending on runtime. Designed to **fit in 80 GB** with MXFP4. ([OpenAI][1])
+* **Llama 4 Maverick** — Checkpoints available in **BF16** and **FP8**; Meta also provides **on-the-fly int4** quantization code. ([Hugging Face][2])
+* **DeepSeek-V3.1** — Uses **FP8 (UE8M0) microscaling** on weights & activations; HF card also lists **BF16/F32** variants. ([Hugging Face][3])
+
+### 4) Parallelism you’d use in an application (what to plan for)
+
+* **GPT-OSS-120B**
+
+  * **Single-GPU**: none needed (MXFP4 fits on 80 GB). ([OpenAI][1])
+  * **Multi-GPU scaling** (if you shard or want higher throughput): **Data Parallel (DP)** for replicas; **Tensor Parallel (TP)** and/or **Pipeline Parallel (PP)** to shard layers; MoE layers can use **Expert Parallel (EP)** if spreading experts across GPUs. (General MoE practice.) ([NVIDIA Docs][5])
+* **Llama 4 Maverick**
+
+  * FP8 weights fit on a **single H100 DGX host** (multi-GPU box). In practice you’ll map **experts across GPUs (EP)** and often combine with **TP**; add **PP** for very long sequences; use **DP** for throughput. ([Hugging Face][2], [NVIDIA Docs][5])
+* **DeepSeek-V3.1**
+
+  * Very large MoE (671B total): plan for **EP** (experts sharded across GPUs) plus **TP**; many stacks also enable **Sequence Parallel (SP)** when mixing EP+TP; add **PP** if needed and **DP** for replicas. (Architecture per V3 report; parallelism per NVIDIA docs.) ([arXiv][4], [NVIDIA Docs][5], [GitHub][6])
+
+---
+
+If you tell me the exact infra (GPU count/memory, framework like vLLM/DeepSpeed/Megatron, and desired throughput), I can turn this into a concrete parallelism/topology plan and memory budget for each model.
+
+[1]: https://openai.com/index/introducing-gpt-oss/ "Introducing gpt-oss | OpenAI"
+[2]: https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E "meta-llama/Llama-4-Maverick-17B-128E · Hugging Face"
+[3]: https://huggingface.co/deepseek-ai/DeepSeek-V3.1 "deepseek-ai/DeepSeek-V3.1 · Hugging Face"
+[4]: https://arxiv.org/abs/2412.19437 "[2412.19437] DeepSeek-V3 Technical Report"
+[5]: https://docs.nvidia.com/megatron-core/developer-guide/latest/api-guide/moe.html?utm_source=chatgpt.com "Mixture of Experts package"
+[6]: https://github.com/NVIDIA/Megatron-LM?utm_source=chatgpt.com "NVIDIA/Megatron-LM: Ongoing research training ..."
